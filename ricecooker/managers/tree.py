@@ -1,5 +1,8 @@
 import json
+import os
 import sys
+
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .. import config
 
@@ -99,8 +102,16 @@ class ChannelManager:
         files_to_upload = list(set(file_list) - set(self.uploaded_files)) # In case restoring from previous session
         try:
             for f in files_to_upload:
-                with open(config.get_storage_path(f), 'rb') as file_obj:
-                    response = config.SESSION.post(config.file_upload_url(), files={'file': file_obj})
+                file_path = config.get_storage_path(f)
+                with open(file_path, 'rb') as file_obj:
+                    data = MultipartEncoder(fields={
+                        'file': (os.path.basename(file_path), file_obj, 'application/octet-stream')
+                    })
+                    response = config.SESSION.post(
+                        config.file_upload_url(),
+                        data=data,
+                        headers={'Content-Type': data.content_type}
+                    )
                     if response.status_code == 200:
                         response.raise_for_status()
                         self.uploaded_files.append(f)
@@ -160,7 +171,14 @@ class ChannelManager:
                 try:
                     assert f.filename, "File failed to download (cannot be uploaded)"
                     with open(config.get_storage_path(f.filename), 'rb') as file_obj:
-                        response = config.SESSION.post(config.file_upload_url(), files={'file': file_obj})
+                        data = MultipartEncoder(fields={
+                            'file': (os.path.basename(f.filename), file_obj, 'application/octet-stream')
+                        })
+                        response = config.SESSION.post(
+                            config.file_upload_url(),
+                            data=data,
+                            headers={'Content-Type': data.content_type}
+                        )
                         response.raise_for_status()
                         self.uploaded_files.append(f.filename)
                 except AssertionError as ae:
