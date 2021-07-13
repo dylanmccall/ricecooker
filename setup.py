@@ -17,6 +17,7 @@ requirements = [
     "le_utils>=0.1.26",
     "validators",                             # TODO: check if this is necessary
     "requests_file",
+    "requests-toolbelt>=0.9.1",
     "beautifulsoup4>=4.6.3,<4.9.0",   # pinned to match versions in le-pycaption
     "pressurecooker>=0.0.30",
     "selenium==3.0.1",

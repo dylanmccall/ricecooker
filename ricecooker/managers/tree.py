@@ -1,9 +1,11 @@
 import codecs
 import json
-import requests
+import os
 import sys
 
 from requests.exceptions import RequestException
+
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .. import config
 
@@ -100,10 +102,11 @@ class ChannelManager:
     def do_file_upload(self, f):
         with open(config.get_storage_path(f), 'rb') as file_obj:
             file_data = self.file_map[f]
+            file_name = file_data.original_filename or file_data.get_filename()
             data = {
                 "size": file_data.size,
                 "checksum": file_data.checksum,
-                "name": file_data.original_filename or file_data.get_filename(),
+                "name": file_name,
                 "file_format": file_data.extension,
                 "preset": file_data.get_preset(),
             }
@@ -122,11 +125,16 @@ class ChannelManager:
                     'Content-Type': content_type,
                     'Content-MD5': b64checksum,
                 }
-                response = config.SESSION.put(upload_url, headers=headers, data=file_obj)
+                # response = config.SESSION.put(upload_url, headers=headers, data=file_obj)
+                put_data = MultipartEncoder(fields={
+                    'file': (file_name, file_obj, 'application/octet-stream')
+                })
+                response = config.SESSION.put(upload_url, headers=headers, data=put_data)
                 if response.status_code == 200:
                     return
                 raise RequestException(response._content.decode("utf-8"))
             else:
+                import ipdb; ipdb.set_trace()
                 raise RequestException(url_response._content.decode("utf-8"))
 
 
@@ -200,7 +208,14 @@ class ChannelManager:
                 try:
                     assert f.filename, "File failed to download (cannot be uploaded)"
                     with open(config.get_storage_path(f.filename), 'rb') as file_obj:
-                        response = config.SESSION.post(config.file_upload_url(), files={'file': file_obj})
+                        data = MultipartEncoder(fields={
+                            'file': (os.path.basename(f.filename), file_obj, 'application/octet-stream')
+                        })
+                        response = config.SESSION.post(
+                            config.file_upload_url(),
+                            data=data,
+                            headers={'Content-Type': data.content_type}
+                        )
                         response.raise_for_status()
                         self.uploaded_files.append(f.filename)
                 except AssertionError as ae:
